@@ -14,6 +14,12 @@ COPY frontend/ ./frontend/
 RUN pip install --upgrade pip && \
     pip install -r backend/requirements.txt
 
+# Install Node.js 20.x and npm for frontend build
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm --version && node --version
+
 # Install frontend dependencies and build
 WORKDIR /app/frontend
 RUN npm install && npm run build
