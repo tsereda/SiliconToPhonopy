@@ -1,1 +1,42 @@
-backend/__pycache__/si_api.cpython-312.pyc
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# VASP output files
+OUTCAR
+WAVECAR
+CHGCAR
+CHG
+DOSCAR
+EIGENVAL
+IBZKPT
+PCDAT
+XDATCAR
+CONTCAR
+vasprun.xml
+OSZICAR
+vasp.log
+POTCAR
+
+# Generated calculation directories
+dft_calculations/
+my_calculations/
+
+# Environment
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Node
+node_modules/
