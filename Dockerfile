@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y curl && \
 
 # Install frontend dependencies and build
 WORKDIR /app/frontend
-RUN npm install && npm run build
+RUN npm install && npm run build && ls -la && ls -la dist/
 
 # Move back to /app
 WORKDIR /app
