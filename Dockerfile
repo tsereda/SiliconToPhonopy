@@ -31,4 +31,4 @@ WORKDIR /app
 EXPOSE 8000 5173
 
 # Start backend and frontend
-CMD ["bash", "-c", "uvicorn backend.si_api:app --host 0.0.0.0 --port 8000 & npx serve frontend/dist --listen 5173"]
+CMD ["bash", "-c", "uvicorn backend.si_api:app --host 0.0.0.0 --port 8000 & npx serve -s frontend/dist --listen 5173"]
