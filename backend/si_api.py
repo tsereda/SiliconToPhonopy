@@ -1,21 +1,5 @@
 """
 FastAPI backend for DFT workflow generation and structure visualization.
-
-Endpoints
----------
-GET  /si_structure          -- Original Si structure endpoint
-POST /workflows/relax       -- Generate perovskite relaxation inputs
-POST /workflows/surface     -- Generate surface slab inputs
-POST /workflows/vacancy     -- Generate vacancy formation inputs
-POST /workflows/dftu        -- Generate PBE vs DFT+U inputs
-POST /workflows/d3          -- Generate DFT-D3 inputs
-POST /workflows/phonon      -- Generate phonon dispersion inputs
-POST /workflows/all         -- Generate all workflow inputs
-GET  /materials/{formula}   -- Search Materials Project
-GET  /materials/id/{mp_id}  -- Get structure by MP ID
-POST /structures/perovskite -- Build a perovskite structure
-POST /structures/rocksalt   -- Build a rocksalt structure
-POST /structures/graphite   -- Build a graphite structure
 """
 
 from __future__ import annotations
@@ -25,7 +9,7 @@ import tempfile
 import traceback
 
 from ase.build import bulk
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -42,6 +26,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# =====================================================================
+# Create the API Router with the /api prefix
+# =====================================================================
+api_router = APIRouter(prefix="/api")
 
 
 # =====================================================================
@@ -88,7 +77,7 @@ class PhononRequest(BaseModel):
 # Original Si endpoint
 # =====================================================================
 
-@app.get("/si_structure")
+@api_router.get("/si_structure")
 def get_si_structure():
     """Build diamond-cubic Si cell (2 atoms) and return structure data."""
     si = bulk("Si", "diamond", a=5.43)
@@ -126,7 +115,7 @@ def _atoms_to_dict(atoms) -> dict:
     }
 
 
-@app.post("/structures/perovskite")
+@api_router.post("/structures/perovskite")
 def build_perovskite_endpoint(req: RelaxRequest):
     """Build a cubic perovskite ABO3 unit cell."""
     from dft_workflows.core.crystal_builders import build_perovskite
@@ -134,7 +123,7 @@ def build_perovskite_endpoint(req: RelaxRequest):
     return JSONResponse(_atoms_to_dict(atoms))
 
 
-@app.post("/structures/rocksalt")
+@api_router.post("/structures/rocksalt")
 def build_rocksalt_endpoint(
     cation: str = Query("Ni"),
     anion: str = Query("O"),
@@ -146,7 +135,7 @@ def build_rocksalt_endpoint(
     return JSONResponse(_atoms_to_dict(atoms))
 
 
-@app.post("/structures/graphite")
+@api_router.post("/structures/graphite")
 def build_graphite_endpoint(req: D3Request):
     """Build an AB-stacked graphite unit cell."""
     from dft_workflows.core.crystal_builders import build_graphite
@@ -158,7 +147,7 @@ def build_graphite_endpoint(req: D3Request):
 # Workflow endpoints
 # =====================================================================
 
-@app.post("/workflows/relax")
+@api_router.post("/workflows/relax")
 def workflow_relax(req: RelaxRequest):
     """Generate VASP inputs for perovskite relaxation."""
     try:
@@ -180,7 +169,7 @@ def workflow_relax(req: RelaxRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/workflows/surface")
+@api_router.post("/workflows/surface")
 def workflow_surface(req: SurfaceRequest):
     """Generate VASP inputs for surface slab model."""
     try:
@@ -202,7 +191,7 @@ def workflow_surface(req: SurfaceRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/workflows/vacancy")
+@api_router.post("/workflows/vacancy")
 def workflow_vacancy(req: VacancyRequest):
     """Generate VASP inputs for vacancy formation energy."""
     try:
@@ -219,7 +208,7 @@ def workflow_vacancy(req: VacancyRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/workflows/dftu")
+@api_router.post("/workflows/dftu")
 def workflow_dftu(req: DftURequest):
     """Generate PBE and PBE+U VASP inputs for comparison."""
     try:
@@ -237,7 +226,7 @@ def workflow_dftu(req: DftURequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/workflows/d3")
+@api_router.post("/workflows/d3")
 def workflow_d3(req: D3Request):
     """Generate PBE and PBE-D3 VASP inputs for graphite."""
     try:
@@ -250,7 +239,7 @@ def workflow_d3(req: D3Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/workflows/phonon")
+@api_router.post("/workflows/phonon")
 def workflow_phonon(req: PhononRequest):
     """Generate Phonopy displaced supercell VASP inputs."""
     try:
@@ -271,7 +260,7 @@ def workflow_phonon(req: PhononRequest):
 # Materials Project endpoints
 # =====================================================================
 
-@app.get("/materials/{formula}")
+@api_router.get("/materials/{formula}")
 def search_materials(
     formula: str,
     max_results: int = Query(10, ge=1, le=50),
@@ -288,7 +277,7 @@ def search_materials(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/materials/id/{mp_id}")
+@api_router.get("/materials/id/{mp_id}")
 def get_material_by_id(mp_id: str):
     """Get structure and reference data by Materials Project ID."""
     try:
@@ -317,3 +306,6 @@ def _read_file(directory: str, filename: str) -> str | None:
         with open(path) as f:
             return f.read()
     return None
+
+# Attach all API routes to the main app!
+app.include_router(api_router)
