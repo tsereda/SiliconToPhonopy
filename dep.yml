@@ -1,0 +1,146 @@
+# 1. Secret for MP API Key
+apiVersion: v1
+kind: Secret
+metadata:
+  name: silicon-ponopy-env
+  namespace: gai-lina-group
+type: Opaque
+stringData:
+  .env: |
+    MP_API_KEY=
+---
+# 2. Persistent Volume Claim for datasets
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: silicon-ponopy-data-pvc
+  namespace: gai-lina-group
+spec:
+  storageClassName: rook-cephfs-central
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi 
+---
+# 3. Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: silicon-ponopy-agent
+  namespace: gai-lina-group
+  labels:
+    app: silicon-ponopy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: silicon-ponopy
+  template:
+    metadata:
+      labels:
+        app: silicon-ponopy
+    spec:
+      containers:
+      - name: silicon-ponopy
+        image: ghcr.io/tsereda/silicon-to-phonop:latest
+        env:
+        - name: PYTHONPATH
+          value: "/app/backend"
+        ports:
+        - containerPort: 5173
+          name: http-frontend
+        - containerPort: 8000
+          name: http-backend
+        resources:
+          requests:
+            memory: "16Gi"
+            cpu: "8"
+          limits:
+            memory: "32Gi"
+            cpu: "16"
+        volumeMounts:
+        - name: data-volume
+          mountPath: /data
+        - name: env-volume
+          mountPath: /envdir
+          readOnly: true
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: silicon-ponopy-data-pvc
+      - name: env-volume
+        secret:
+          secretName: silicon-ponopy-env
+---
+# 4. Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: silicon-ponopy-service
+  namespace: gai-lina-group
+spec:
+  selector:
+    app: silicon-ponopy
+  ports:
+  - name: frontend
+    protocol: TCP
+    port: 80
+    targetPort: 5173
+  - name: backend
+    protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+# 5. Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: silicon-ponopy-ingress
+  namespace: gai-lina-group
+  annotations:
+    haproxy.org/timeout-http-request: "300s"
+    haproxy.org/timeout-connect: "30s"
+    haproxy.org/timeout-server: "300s"
+    haproxy.org/timeout-tunnel: "3600s"
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - silicon-ponopy.nrp-nautilus.io
+    secretName: silicon-ponopy-tls
+  rules:
+  - host: silicon-ponopy.nrp-nautilus.io
+    http:
+      paths:
+      # --- API Routes (Routed to Python) ---
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: silicon-ponopy-service
+            port:
+              number: 8000
+      - path: /docs
+        pathType: Prefix
+        backend:
+          service:
+            name: silicon-ponopy-service
+            port:
+              number: 8000
+      - path: /openapi.json
+        pathType: Prefix
+        backend:
+          service:
+            name: silicon-ponopy-service
+            port:
+              number: 8000
+      # --- SvelteKit Frontend (Catch-all) ---
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: silicon-ponopy-service
+            port:
+              number: 80
